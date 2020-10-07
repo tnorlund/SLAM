@@ -251,12 +251,8 @@ class FrameRateTest {
             std::string _dateTime = boost::lexical_cast<std::string>(
                 getTimeInMiliseconds()
             );
-            // std::string _runTime = boost::lexical_cast<std::string>(
-            //     (endTime - startTime)/1000
-            // );
             // Convert to AWS::String
             Aws::String dateTime(_dateTime.c_str(), _dateTime.size());
-            // Aws::String runTime(_runTime.c_str(), _runTime.size());
             Aws::String table_name(tableName.c_str(), tableName.size());
             // Set table name
             pir.SetTableName(table_name);
@@ -267,21 +263,20 @@ class FrameRateTest {
             // Set the different values for the row
             Aws::DynamoDB::Model::AttributeValue val;
             val.SetS(dateTime); pir.AddItem("dateTime", val);
-            val.SetS(
-                Aws::Number((endTime - startTime)/1000)
-            ); pir.AddItem("runTime", val);
-            // val.SetS(timeLength); pir.AddItem("timeRequested", val);
-            // val.SetS(requestedFPS); pir.AddItem("fpsRequested", val);
-            // val.SetS(numImages); pir.AddItem("numberFrames", val);
-            // val.SetS(bufferSize); pir.AddItem("buffer", val);
-            // val.SetS((float)numImages/(float)timeLength);
-            //     pir.AddItem("fpsReal", val);
+            val.SetN((endTime - startTime)/1000); pir.AddItem("runTime", val);
+            val.SetN(timeLength); pir.AddItem("timeRequested", val);
+            val.SetN(requestedFPS); pir.AddItem("fpsRequested", val);
+            val.SetN(numImages); pir.AddItem("numberFrames", val);
+            val.SetN(bufferSize); pir.AddItem("buffer", val);
+            val.SetN((float)numImages/(float)timeLength);
+                pir.AddItem("fpsReal", val);
 
-            const Aws::DynamoDB::Model::PutItemOutcome result = dynamoClient.PutItem(pir);
+            const Aws::DynamoDB::Model::PutItemOutcome result = 
+                dynamoClient.PutItem(pir);
             if (!result.IsSuccess())
             {
-                std::cout << "bad result" << std::endl;
-                std::cout << result.GetError().GetMessage() << std::endl;
+                std::cout << "Unsuccessfully put item in DynamoDB: " 
+                    << result.GetError().GetMessage() << std::endl;
             }
         }
 
@@ -370,8 +365,6 @@ class FrameRateTest {
             std::filesystem::remove_all(DIRECTORY);
         }
 
-        
-
         /**
          *   Run the test for the given period of time.
          * 
@@ -383,11 +376,14 @@ class FrameRateTest {
             if ( verbose ) 
                 std::cout << "Going to capture frames for " << timeLength << 
                     " seconds" << std::endl;
-            // Calculate the start time and set the state of the test to be running.
+            // Calculate the start time and set the state of the test to be
+            // running.
             startTime = getTimeInMiliseconds();
             testRunning = true;
             // The thread used to capture the images from the camera.
-            std::thread cameraThread(&FrameRateTest::capture_images, this, timeLength);
+            std::thread cameraThread(
+                &FrameRateTest::capture_images, this, timeLength
+            );
             // The thread used to write the captures to the disk.
             std::thread writeThread(&FrameRateTest::write_images, this);
             // Join the threads after the test has been finished.
@@ -395,7 +391,10 @@ class FrameRateTest {
             // Calculate the end time of the test.
             endTime = getTimeInMiliseconds();
             // Count the number of images saved to the disk.
-            for (const auto & entry : std::filesystem::directory_iterator(DIRECTORY))
+            for (
+                const auto & entry : 
+                    std::filesystem::directory_iterator(DIRECTORY)
+            )
                 numImages++;
             // If a file is given, write the results to the file.
             if ( fileName != "" ) 
@@ -405,12 +404,10 @@ class FrameRateTest {
                 this->saveResultToDynamoDB( numImages, timeLength );
             // Print the results to the console.
             if (verbose)
-                std::cout << "FPS: " << (float)numImages/(float)timeLength << " | Buffer: " 
-                    << bufferSize << std::endl << std::endl;
+                std::cout << "FPS: " << (float)numImages/(float)timeLength 
+                    << " | Buffer: " << bufferSize << std::endl << std::endl;
         }
 };
-
-
 
 int main (int argc, char * argv[]) {
     int timeLength, buffer, fps;
@@ -421,7 +418,8 @@ int main (int argc, char * argv[]) {
     description.add_options()
         ("help,h", "Help screen")
         ("fps,f", boost::program_options::value(&fps), 
-            "The number of frames to capture per second.\nThis defaults to 10.")
+            "The number of frames to capture per second.\nThis defaults to "
+            "10.")
         ("buffer,b", boost::program_options::value(&buffer), 
             "The size of the buffer used in the test.\nThis defaults to 100.")
         ("time,t", boost::program_options::value(&timeLength), 
@@ -447,8 +445,6 @@ int main (int argc, char * argv[]) {
     if (vm.count("verbose")) { verbose = true; }
     FrameRateTest test(buffer, fps, verbose, fileName, tableName);
     test.run(timeLength);
-    std::cout << "Finished run!" << std::endl;
-    
     Aws::ShutdownAPI(options);
     return 0;
 }
