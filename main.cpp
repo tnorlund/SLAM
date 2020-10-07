@@ -304,8 +304,7 @@ class FrameRateTest {
                 } else { return true; }
             } 
             else { 
-                std::cerr << "Unsuccessfully queried HW data" << std::endl;
-                exit(0);
+                return false;
             }
             
         }
