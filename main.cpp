@@ -23,6 +23,7 @@
 #include <aws/dynamodb/DynamoDBClient.h>
 #include <aws/dynamodb/model/AttributeDefinition.h>
 #include <aws/dynamodb/model/PutItemRequest.h>
+#include <aws/dynamodb/model/GetItemRequest.h>
 #include <aws/dynamodb/model/PutItemResult.h>
 
 
@@ -75,6 +76,12 @@ class FrameRateTest {
     std::ifstream fileInput;
     // The DynamoDB table used to write the test results to.
     std::string tableName;
+    // The CPU information
+    std::string cpuHardware;
+    std::string cpuRevision;
+    std::string cpuSerial;
+    std::string cpuModel;
+    int cpuCores;
 
     private:
         /**
@@ -218,6 +225,47 @@ class FrameRateTest {
         }
 
         /**
+         *   Finds the CPU information and stores it in the DB
+         */
+        void setPiName() {
+            std::string line;
+            std::string cpuString;
+            std::smatch cpuMatch;
+            std::regex const cpuRegex(
+                "Hardware\t+: ([A-Z0-9]+)\n"
+                "Revision\t+: ([a-z0-9]+)\n"
+                "Serial\t+: ([a-z0-9]+)\n"
+                "Model\t+: (.+)\n"
+            );
+            int numCores = 0;
+            std::regex coreRegex("processor\t+: [0-9]");
+            // Read the cpuinfo file
+            fileInput.open("/proc/cpuinfo");
+            if (fileInput.is_open()) {
+                while ( getline(fileInput, line) ) {
+                    cpuString.append(line + "\n");
+                }
+                fileInput.close();
+            }
+            // Get the general CPU information
+            if (std::regex_search(cpuString, cpuMatch, cpuRegex)) {
+                cpuHardware = cpuMatch[1];
+                cpuRevision = cpuMatch[2];
+                cpuSerial = cpuMatch[3];
+                cpuModel = cpuMatch[4];
+            } else {
+                std::runtime_error("Could not get CPU information");
+            }
+            // Get the CPU core information
+            std::regex_iterator<std::string::iterator> rit ( 
+                cpuString.begin(), cpuString.end(), coreRegex 
+            );
+            std::regex_iterator<std::string::iterator> rend;
+            while (rit!=rend) { ++numCores; ++rit; }
+            cpuCores = numCores;
+        }
+
+        /**
          *   Save the results of the test to a ".csv" file.
          * 
          *   @param numImages The number of images the test saved to disk
@@ -237,6 +285,59 @@ class FrameRateTest {
             fileOutput.close();
         }
 
+        bool _isCPUInDynamoDB() {
+            Aws::Client::ClientConfiguration clientConfig;
+            Aws::DynamoDB::DynamoDBClient dynamoClient(clientConfig);
+            Aws::DynamoDB::Model::GetItemRequest req;
+            std::string s{"RaspberryPi"};
+            Aws::String hwTableName(s.c_str(), s.size());
+            Aws::String _cpuSerial(cpuSerial.c_str(), cpuSerial.size());
+            req.SetTableName(hwTableName);
+            Aws::DynamoDB::Model::AttributeValue hashKey;
+            hashKey.SetS(_cpuSerial);
+            req.AddKey("ID", hashKey);
+            const Aws::DynamoDB::Model::GetItemOutcome& result =
+                dynamoClient.GetItem(req);
+            if (result.IsSuccess()) { 
+                if ( result.GetResult().GetItem().size() < 1 ) {
+                    return false; 
+                } else { return true; }
+            } 
+            else { 
+                std::cerr << "Unsuccessfully queried HW data" << std::endl;
+                exit(0);
+            }
+            
+        }
+
+        void _saveCPUToDynamoDB() {
+            Aws::Client::ClientConfiguration clientConfig;
+            Aws::DynamoDB::DynamoDBClient dynamoClient(clientConfig);
+            Aws::DynamoDB::Model::PutItemRequest pir;
+            Aws::DynamoDB::Model::AttributeValue av;
+            Aws::DynamoDB::Model::AttributeValue val;
+            Aws::DynamoDB::Model::PutItemOutcome result;
+
+            std::string s{"RaspberryPi"};
+            Aws::String hwTableName(s.c_str(), s.size());
+            pir.SetTableName(hwTableName);
+            Aws::String _cpuHardware(cpuHardware.c_str(), cpuHardware.size());
+            Aws::String _cpuRevision(cpuRevision.c_str(), cpuRevision.size());
+            Aws::String _cpuSerial(cpuSerial.c_str(), cpuSerial.size());
+            Aws::String _cpuModel(cpuModel.c_str(), cpuModel.size());
+            av.SetS(_cpuSerial); pir.AddItem("ID", av);
+            val.SetS(_cpuHardware); pir.AddItem("hardware", val);
+            val.SetS(_cpuRevision); pir.AddItem("revision", val);
+            val.SetS(_cpuModel); pir.AddItem("model", val);
+            val.SetN(cpuCores); pir.AddItem("numCores", val);
+            result = dynamoClient.PutItem(pir);
+            if (!result.IsSuccess()) {
+                std::cerr << "Unsuccessfully put item in DynamoDB: " 
+                    << result.GetError().GetMessage() << std::endl;
+                exit(0);
+            }
+        }
+
         /**
          *   Save the results of the test to DynamoDB.
          * 
@@ -247,22 +348,30 @@ class FrameRateTest {
             Aws::Client::ClientConfiguration clientConfig;
             Aws::DynamoDB::DynamoDBClient dynamoClient(clientConfig);
             Aws::DynamoDB::Model::PutItemRequest pir;
+            Aws::DynamoDB::Model::AttributeValue av;
+            Aws::DynamoDB::Model::AttributeValue val;
+            Aws::DynamoDB::Model::PutItemOutcome result;
             // Caste strings
             std::string _dateTime = boost::lexical_cast<std::string>(
                 getTimeInMiliseconds()
             );
             // Convert to AWS::String
             Aws::String dateTime(_dateTime.c_str(), _dateTime.size());
+            _dateTime += cpuSerial;
+            Aws::String resultID(_dateTime.c_str(), _dateTime.size());
             Aws::String table_name(tableName.c_str(), tableName.size());
-            // Set table name
+            Aws::String _cpuSerial(cpuSerial.c_str(), cpuSerial.size());
+            // Set HW table name
+            if ( !this->_isCPUInDynamoDB() ) {
+                this->_saveCPUToDynamoDB();
+            }
+            // Set result table name
             pir.SetTableName(table_name);
             // Set the key for the table row
-            Aws::DynamoDB::Model::AttributeValue av;
-            av.SetS(dateTime);
-            pir.AddItem("id", av);
+            av.SetS(resultID); pir.AddItem("id", av);
             // Set the different values for the row
-            Aws::DynamoDB::Model::AttributeValue val;
             val.SetS(dateTime); pir.AddItem("dateTime", val);
+            val.SetS(_cpuSerial); pir.AddItem("cpuSerial", val);
             val.SetN((endTime - startTime)/1000); pir.AddItem("runTime", val);
             val.SetN(timeLength); pir.AddItem("timeRequested", val);
             val.SetN(requestedFPS); pir.AddItem("fpsRequested", val);
@@ -270,13 +379,12 @@ class FrameRateTest {
             val.SetN(bufferSize); pir.AddItem("buffer", val);
             val.SetN((float)numImages/(float)timeLength);
                 pir.AddItem("fpsReal", val);
-
-            const Aws::DynamoDB::Model::PutItemOutcome result = 
-                dynamoClient.PutItem(pir);
+            result = dynamoClient.PutItem(pir);
             if (!result.IsSuccess())
             {
-                std::cout << "Unsuccessfully put item in DynamoDB: " 
+                std::cerr << "Unsuccessfully put item in DynamoDB: " 
                     << result.GetError().GetMessage() << std::endl;
+                exit(0);
             }
         }
 
@@ -298,6 +406,8 @@ class FrameRateTest {
         ) {
             // Check to see if a camera is connected.
             checkCameraConfiguration();
+            // Set CPU Info
+            setPiName();
             // Store the size of the buffer.
             bufferSize = buffer;
             // Dynamically allocate enough space for the time of each capture 
