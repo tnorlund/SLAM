@@ -12,6 +12,11 @@ SET(THREADS_PREFER_PTHREAD_FLAG ON)
 cmake_minimum_required (VERSION 2.8) 
 project (raspicam_test)
 
+#####################################
+# Setup package for AWS
+set(BUILD_SHARED_LIBS ON)
+find_package(AWSSDK REQUIRED COMPONENTS dynamodb)
+
 find_package(raspicam REQUIRED)
 find_package(OpenCV)
 IF  ( OpenCV_FOUND AND raspicam_CV_FOUND)
@@ -21,6 +26,7 @@ add_executable (frameratetest main.cpp)
 MESSAGE( STATUS  "LIBRARIES ${raspicam_CV_LIBS}")
 target_link_libraries (frameratetest ${OpenCV_LIBS} ${raspicam_CV_LIBS})
 target_link_libraries (frameratetest -lstdc++fs)
+target_link_libraries (frameratetest ${AWSSDK_LINK_LIBRARIES})
 FIND_PACKAGE(Boost COMPONENTS program_options REQUIRED)
 INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 TARGET_LINK_LIBRARIES(frameratetest ${Boost_LIBRARIES})

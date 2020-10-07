@@ -15,10 +15,35 @@
 #include <raspicam/raspicam_cv.h>
 #include <raspicam/raspicam_still_cv.h>
 #include <opencv2/opencv.hpp>
+/* These are the libraries required for AWS.
+ *
+ */
+#include <aws/core/Aws.h>
+#include <aws/core/utils/Outcome.h> 
+#include <aws/dynamodb/DynamoDBClient.h>
+#include <aws/dynamodb/model/AttributeDefinition.h>
+#include <aws/dynamodb/model/PutItemRequest.h>
+#include <aws/dynamodb/model/PutItemResult.h>
+
 
 const std::string DIRECTORY = "images";
 const int HEIGHT = 960;
 const int WIDTH = 1280;
+
+Aws::SDKOptions options;
+
+/**
+ *   A helper function that returns the current time in milliseconds.
+ * 
+ *   @returns The current time in milliseconds.
+ */
+int64_t getTimeInMiliseconds () {
+    return(
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()
+        ).count()
+    );
+}
 
 /**
  *   A test for the a Raspberry Pi Camera's framerate.
@@ -40,12 +65,16 @@ class FrameRateTest {
     bool verbose;
     // Whether the test is currently running or not.
     bool testRunning;
+    // The start and stop times of the test.
+    double startTime, endTime;
     // The camera use to capture the images.
     raspicam::RaspiCam_Cv Camera;
     // The file used to write the test results to.
     std::string fileName;
     std::ofstream fileOutput; 
     std::ifstream fileInput;
+    // The DynamoDB table used to write the test results to.
+    std::string tableName;
 
     private:
         /**
@@ -188,6 +217,74 @@ class FrameRateTest {
             }
         }
 
+        /**
+         *   Save the results of the test to a ".csv" file.
+         * 
+         *   @param numImages The number of images the test saved to disk
+         *   @param timeLength The amount of time to record frames for.
+         */
+        void saveResultToFile( int numImages, int timeLength ) {
+            fileInput.open(fileName);
+            fileOutput.open(fileName, std::ios::app); 
+            fileOutput << 
+                boost::lexical_cast<std::string>(getTimeInMiliseconds()) 
+                << "," << 
+                boost::lexical_cast<std::string>((endTime - startTime)/1000)
+                << "," << (float)numImages/(float)timeLength << "," 
+                << numImages << "," << bufferSize << "," << requestedFPS 
+                << ",\n";
+            fileInput.close();
+            fileOutput.close();
+        }
+
+        /**
+         *   Save the results of the test to DynamoDB.
+         * 
+         *   @param numImages The number of images the test saved to disk
+         *   @param timeLength The amount of time to record frames for.
+         */
+        void saveResultToDynamoDB( int numImages, int timeLength ) {
+            Aws::Client::ClientConfiguration clientConfig;
+            Aws::DynamoDB::DynamoDBClient dynamoClient(clientConfig);
+            Aws::DynamoDB::Model::PutItemRequest pir;
+            // Caste strings
+            std::string _dateTime = boost::lexical_cast<std::string>(
+                getTimeInMiliseconds()
+            );
+            // std::string _runTime = boost::lexical_cast<std::string>(
+            //     (endTime - startTime)/1000
+            // );
+            // Convert to AWS::String
+            Aws::String dateTime(_dateTime.c_str(), _dateTime.size());
+            // Aws::String runTime(_runTime.c_str(), _runTime.size());
+            Aws::String table_name(tableName.c_str(), tableName.size());
+            // Set table name
+            pir.SetTableName(table_name);
+            // Set the key for the table row
+            Aws::DynamoDB::Model::AttributeValue av;
+            av.SetS(dateTime);
+            pir.AddItem("id", av);
+            // Set the different values for the row
+            Aws::DynamoDB::Model::AttributeValue val;
+            val.SetS(dateTime); pir.AddItem("dateTime", val);
+            val.SetS(
+                Aws::Number((endTime - startTime)/1000)
+            ); pir.AddItem("runTime", val);
+            // val.SetS(timeLength); pir.AddItem("timeRequested", val);
+            // val.SetS(requestedFPS); pir.AddItem("fpsRequested", val);
+            // val.SetS(numImages); pir.AddItem("numberFrames", val);
+            // val.SetS(bufferSize); pir.AddItem("buffer", val);
+            // val.SetS((float)numImages/(float)timeLength);
+            //     pir.AddItem("fpsReal", val);
+
+            const Aws::DynamoDB::Model::PutItemOutcome result = dynamoClient.PutItem(pir);
+            if (!result.IsSuccess())
+            {
+                std::cout << "bad result" << std::endl;
+                std::cout << result.GetError().GetMessage() << std::endl;
+            }
+        }
+
     public:
         /**
          *   Constructor for the framerate test.
@@ -197,9 +294,12 @@ class FrameRateTest {
          *   @param verbose Whether to print to the console.
          *   @param fileName The name of the file to save the results of the 
          *     test.
+         *   @param tableName The name of the DynamoDB table to save the test
+         *     results to.
          */
         FrameRateTest( 
-            int buffer, int fps, bool _verbose, std::string file_name 
+            int buffer, int fps, bool _verbose, std::string file_name, 
+            std::string table_name
         ) {
             // Check to see if a camera is connected.
             checkCameraConfiguration();
@@ -233,6 +333,10 @@ class FrameRateTest {
                     fileOutput.close();
                 }
             }
+            tableName = table_name;
+            if ( tableName != "" ) {
+                Aws::InitAPI(options);
+            }
             Camera.set( cv::CAP_PROP_FORMAT, CV_8UC3 );
             if ( !Camera.open() ) { throw "Error opening the camera"; }
             if ( 2 > std::thread::hardware_concurrency() ) {
@@ -247,7 +351,7 @@ class FrameRateTest {
             if ( !std::filesystem::exists(DIRECTORY) ) {
                 std::filesystem::create_directory(DIRECTORY);
             }
-            // Otherwise, the directory exists and must be deleted and recreated. 
+            // Otherwise, the directory exists and must be deleted and recreated.
             else {
                 std::filesystem::remove_all(DIRECTORY);
                 std::filesystem::create_directory(DIRECTORY);
@@ -266,6 +370,8 @@ class FrameRateTest {
             std::filesystem::remove_all(DIRECTORY);
         }
 
+        
+
         /**
          *   Run the test for the given period of time.
          * 
@@ -274,15 +380,11 @@ class FrameRateTest {
         void run( int timeLength ) {
             // The number of images written to disk.
             int numImages = 0;
-            // The start and stop times of the test.
-            double startTime, endTime;
             if ( verbose ) 
                 std::cout << "Going to capture frames for " << timeLength << 
                     " seconds" << std::endl;
             // Calculate the start time and set the state of the test to be running.
-            startTime = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()
-            ).count();
+            startTime = getTimeInMiliseconds();
             testRunning = true;
             // The thread used to capture the images from the camera.
             std::thread cameraThread(&FrameRateTest::capture_images, this, timeLength);
@@ -291,26 +393,16 @@ class FrameRateTest {
             // Join the threads after the test has been finished.
             cameraThread.join(); writeThread.join();
             // Calculate the end time of the test.
-            endTime = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()
-            ).count();
+            endTime = getTimeInMiliseconds();
             // Count the number of images saved to the disk.
-            for (const auto & entry :  std::filesystem::directory_iterator(DIRECTORY)) 
+            for (const auto & entry : std::filesystem::directory_iterator(DIRECTORY))
                 numImages++;
             // If a file is given, write the results to the file.
-            if ( fileName != "" ) { 
-                fileInput.open(fileName);
-                fileOutput.open(fileName, std::ios::app); 
-                fileOutput << boost::lexical_cast<std::string>(std::chrono::duration_cast<
-                        std::chrono::milliseconds
-                    >(
-                        std::chrono::system_clock::now().time_since_epoch()
-                    ).count()) << "," << boost::lexical_cast<std::string>((endTime - startTime)/1000) 
-                    << "," << (float)numImages/(float)timeLength << "," << numImages << "," 
-                    << bufferSize << "," << requestedFPS << ",\n";
-                fileInput.close();
-                fileOutput.close();
-            }
+            if ( fileName != "" ) 
+                this->saveResultToFile( numImages, timeLength );
+            // If a DynamoDB table name is given, send the data to the DB
+            if ( tableName != "" ) 
+                this->saveResultToDynamoDB( numImages, timeLength );
             // Print the results to the console.
             if (verbose)
                 std::cout << "FPS: " << (float)numImages/(float)timeLength << " | Buffer: " 
@@ -319,9 +411,11 @@ class FrameRateTest {
 };
 
 
+
 int main (int argc, char * argv[]) {
     int timeLength, buffer, fps;
     std::string fileName;
+    std::string tableName;
     bool verbose = false;
     boost::program_options::options_description description("Allowed options");
     description.add_options()
@@ -332,8 +426,10 @@ int main (int argc, char * argv[]) {
             "The size of the buffer used in the test.\nThis defaults to 100.")
         ("time,t", boost::program_options::value(&timeLength), 
             "The length of time to run the test.\nThis defaults to 15.")
-        ("filename,d", boost::program_options::value(&fileName), 
+        ("filename,n", boost::program_options::value(&fileName), 
             "The file name used to store the test results.")
+        ("tablename,d", boost::program_options::value(&tableName),
+            "The DynamoDB table name used to store the results.")
         ("verbose,v", "Whether to print messages to screen");
     boost::program_options::variables_map vm;
     boost::program_options::store (
@@ -347,8 +443,12 @@ int main (int argc, char * argv[]) {
     if (!vm.count("time")) { timeLength = 15; }
     if (!vm.count("buffer")) { buffer = 100; }
     if (!vm.count("filename")) { fileName = ""; }
+    if (!vm.count("tablename")) { tableName = ""; }
     if (vm.count("verbose")) { verbose = true; }
-    FrameRateTest test(buffer, fps, verbose, fileName);
+    FrameRateTest test(buffer, fps, verbose, fileName, tableName);
     test.run(timeLength);
+    std::cout << "Finished run!" << std::endl;
+    
+    Aws::ShutdownAPI(options);
     return 0;
 }
