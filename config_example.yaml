@@ -1,0 +1,9 @@
+test: 
+  framerate: 15
+  time: 60
+  buffer: 800
+  tablename: <tablename>
+  aws_accesskey: <accesskey>
+  aws_secretaccesskey: <secretaccesskey>
+  linode_accesskey: <accesskey>
+  linode_secretaccesskey: <secretaccesskey>

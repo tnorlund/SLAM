@@ -19,17 +19,37 @@ find_package(AWSSDK REQUIRED COMPONENTS dynamodb)
 
 find_package(raspicam REQUIRED)
 find_package(OpenCV)
+find_package(yaml-cpp REQUIRED)
+
 IF  ( OpenCV_FOUND AND raspicam_CV_FOUND)
 MESSAGE(STATUS "COMPILING OPENCV TESTS")
 include_directories( ${OpenCV_INCLUDE_DIRS} )
-add_executable (frameratetest main.cpp)  
+
+
+FIND_PACKAGE(Boost COMPONENTS program_options REQUIRED)
+INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
+
+add_executable (frameratetest frameratetest.cpp) 
+add_executable (server server.cpp) 
 MESSAGE( STATUS  "LIBRARIES ${raspicam_CV_LIBS}")
+
+
+
+message(STATUS "Used yaml dir: ${YAML_CPP_LIBRARIES}")
+
 target_link_libraries (frameratetest ${OpenCV_LIBS} ${raspicam_CV_LIBS})
 target_link_libraries (frameratetest -lstdc++fs)
 target_link_libraries (frameratetest ${AWSSDK_LINK_LIBRARIES})
-FIND_PACKAGE(Boost COMPONENTS program_options REQUIRED)
-INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 TARGET_LINK_LIBRARIES(frameratetest ${Boost_LIBRARIES})
+
+
+
+target_link_libraries (server ${OpenCV_LIBS} ${raspicam_CV_LIBS})
+target_link_libraries (server -lstdc++fs)
+target_link_libraries (server ${AWSSDK_LINK_LIBRARIES})
+TARGET_LINK_LIBRARIES(server ${Boost_LIBRARIES})
+TARGET_LINK_LIBRARIES(server yaml-cpp)
+
 ELSE()
 MESSAGE(FATAL_ERROR "OPENCV NOT FOUND IN YOUR SYSTEM")
 ENDIF()
