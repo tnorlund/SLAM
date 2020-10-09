@@ -48,15 +48,8 @@ target_link_libraries (frameratetest -lstdc++fs)
 target_link_libraries (frameratetest ${AWSSDK_LINK_LIBRARIES})
 TARGET_LINK_LIBRARIES(frameratetest ${Boost_LIBRARIES})
 
-
-
-target_link_libraries (server ${OpenCV_LIBS} ${raspicam_CV_LIBS})
-target_link_libraries (server -lstdc++fs)
-target_link_libraries (server ${AWSSDK_LINK_LIBRARIES})
-TARGET_LINK_LIBRARIES(server ${Boost_LIBRARIES})
-TARGET_LINK_LIBRARIES(server yaml-cpp)
-
 TARGET_LINK_LIBRARIES(client -lstdc++fs yaml-cpp ${Boost_LIBRARIES} ${wiringPi_LIB})
+TARGET_LINK_LIBRARIES(server -lstdc++fs yaml-cpp ${Boost_LIBRARIES} ${wiringPi_LIB})
 
 ELSE()
 MESSAGE(FATAL_ERROR "OPENCV NOT FOUND IN YOUR SYSTEM")

@@ -1,14 +1,17 @@
 #include <iostream>
 #include <exception>
 #include <string>
+#include <fstream>
 #include <sstream>
 #include <regex>
 #include <thread>
+#include <filesystem>
 #include <sys/stat.h>
 #include <yaml-cpp/yaml.h>
 
 #include "MPU6050.h"
 #include "Socket.h"
+#include "Slam.h"
 #include <boost/program_options.hpp>
 
 
@@ -56,7 +59,20 @@ bool processCommandLine(int argc, char** argv,
 }
 
 void writeConfigFile(std::string fileContents) {
-  std::cout << "writeConfigFile" << std::endl << fileContents << std::endl;
+  /// The file name.
+  std::string configFile = "config.yaml";
+  /// File buffer for the config file.
+  struct stat configbuffer;
+  /// File stream to write config to file.
+  std::ofstream fileOutput;
+
+  // Delete the file if it exists
+  if (stat (configFile.c_str(), &configbuffer) == 0)
+    std::filesystem::remove(configFile);
+    
+  fileOutput.open(configFile, std::ios::app); 
+  fileOutput << fileContents.substr(7, fileContents.length());
+  fileOutput.close();
 }
 
 /**
@@ -92,11 +108,8 @@ void HandleTCPClient(TCPSocket *clientSocket) {
   }
   std::istringstream iss(message);
   std::getline(iss, line);
-  switch(line) {
-    case "CONFIG": writeConfigFile(message);
-    default: std::cerr << "Received bad command: " << line << std::endl;
-  }
-  std::cout << line << std::endl;
+  if (line == "CONFIG") { writeConfigFile(message); }
+  else { std::cerr << "Received bad command: " << line << std::endl; }
   // Luckily, the destructor of the socket closes everything.
 }
 
