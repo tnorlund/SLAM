@@ -15,10 +15,10 @@
 #include <boost/program_options.hpp>
 
 
-/**
- *   The size of the received packet.
- */
+/// The size of the received packet.
 const int RCVBUFFERSIZE = 32;
+/// The name of the configuration file.
+const std::string CONFIG_FILENAME = "config.yaml";
 
 /**
  *   Handle the parameters given in the command line.
@@ -59,18 +59,16 @@ bool processCommandLine(int argc, char** argv,
 }
 
 void writeConfigFile(std::string fileContents) {
-  /// The file name.
-  std::string configFile = "config.yaml";
   /// File buffer for the config file.
   struct stat configbuffer;
   /// File stream to write config to file.
   std::ofstream fileOutput;
 
   // Delete the file if it exists
-  if (stat (configFile.c_str(), &configbuffer) == 0)
-    std::filesystem::remove(configFile);
+  if (stat (CONFIG_FILENAME.c_str(), &configbuffer) == 0)
+    std::filesystem::remove(CONFIG_FILENAME);
     
-  fileOutput.open(configFile, std::ios::app); 
+  fileOutput.open(CONFIG_FILENAME, std::ios::app); 
   fileOutput << fileContents.substr(7, fileContents.length());
   fileOutput.close();
 }
@@ -108,6 +106,7 @@ void HandleTCPClient(TCPSocket *clientSocket) {
   }
   std::istringstream iss(message);
   std::getline(iss, line);
+  if (line == "START") { SLAM recording(CONFIG_FILENAME);}
   if (line == "CONFIG") { writeConfigFile(message); }
   else { std::cerr << "Received bad command: " << line << std::endl; }
   // Luckily, the destructor of the socket closes everything.

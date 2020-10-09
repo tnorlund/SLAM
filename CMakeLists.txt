@@ -14,7 +14,7 @@ project (raspicam_test)
 
 #####################################
 # Setup headers for files
-SET(HEADER_FILES Socket.cpp Socket.h MPU6050.cpp MPU6050.h)
+SET(HEADER_FILES Socket.cpp Socket.h MPU6050.cpp MPU6050.h Slam.cpp Slam.h)
 
 #####################################
 # Setup package for AWS
@@ -48,8 +48,8 @@ target_link_libraries (frameratetest -lstdc++fs)
 target_link_libraries (frameratetest ${AWSSDK_LINK_LIBRARIES})
 TARGET_LINK_LIBRARIES(frameratetest ${Boost_LIBRARIES})
 
-TARGET_LINK_LIBRARIES(client -lstdc++fs yaml-cpp ${Boost_LIBRARIES} ${wiringPi_LIB})
-TARGET_LINK_LIBRARIES(server -lstdc++fs yaml-cpp ${Boost_LIBRARIES} ${wiringPi_LIB})
+TARGET_LINK_LIBRARIES(client -lstdc++fs yaml-cpp ${Boost_LIBRARIES} ${wiringPi_LIB} ${OpenCV_LIBS} ${raspicam_CV_LIBS})
+TARGET_LINK_LIBRARIES(server -lstdc++fs yaml-cpp ${Boost_LIBRARIES} ${wiringPi_LIB} ${OpenCV_LIBS} ${raspicam_CV_LIBS})
 
 ELSE()
 MESSAGE(FATAL_ERROR "OPENCV NOT FOUND IN YOUR SYSTEM")

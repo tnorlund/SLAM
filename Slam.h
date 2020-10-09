@@ -6,6 +6,7 @@
 #include <exception>              // For exception class
 #include <opencv2/opencv.hpp>     // For Mat
 #include <raspicam/raspicam_cv.h> // For RaspiCam_Cv
+#include <fstream>                // For ofstream, ifstream
 
 class SLAM {
 public:
@@ -42,7 +43,7 @@ private:
   void checkCameraConfiguration();
 
   /**
-   *   Finds the CPU information and stores it in DynamoDB.
+   *   Finds the CPU information.
    */
   void setPiName();
 
@@ -62,24 +63,22 @@ protected:
   /// Whether to print to the console.
   bool verbose;
   /// Whether the recording is running or not.
-  bool testRunning;
+  bool recording;
   /// Number of seconds to record frames for.
   /// The start and stop times of the recording.
   double startTime, endTime;
   /// The camera use to capture the images.
   raspicam::RaspiCam_Cv Camera;
-  // The file used to write the test results to.
-  std::string fileName;
+  /// The directory used to write the recording to.
+  std::string directory;
+  /// The filestream used to write data.
   std::ofstream fileOutput; 
+  /// The filestream used to read data.
   std::ifstream fileInput;
-  /// The DynamoDB table used to write the recording to.
+  /// The serial number of the Pi.
+  std::string serial;
+  /// The DynamoDB table name used to store the test.
   std::string tableName;
-  /// The CPU information
-  std::string cpuHardware;
-  std::string cpuRevision;
-  std::string cpuSerial;
-  std::string cpuModel;
-  int cpuCores;
 
 };
 
