@@ -63,7 +63,7 @@ SLAM::SLAM(std::string fileName) {
   cv::Mat image = cv::Mat(HEIGHT, WIDTH, CV_8UC3);
   // Calculate the length of time between captures. Note, the time needs to be
   // given in milliseconds.
-  timeBetweenFrames = (double)(1/(float)fps*1000);
+  timeBetweenFrames = (double)( 1 / (float)requestedFPS * 1000);
   // Set the state of the recording to not running.
   recording = false;
   // Open the camera and set the proper formats. 
