@@ -150,8 +150,6 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  configRaw = "CONFIG\n" + getFileData(configFile);
-  handleBuffer(configRaw, messageBuffer, messageLength);
 
   
   try {
@@ -160,23 +158,10 @@ int main(int argc, char** argv) {
       config["server"].as<std::string>(),
       config["port"].as<unsigned short>()
     );
-    // Send the message to the server
+    // Send the configuration file to the server
+    configRaw = "CONFIG\n" + getFileData(configFile);
+    handleBuffer(configRaw, messageBuffer, messageLength);
     sock.send(messageBuffer, messageLength);
-    // Receive the same message back. Since the message length is known, the 
-    // buffer can be used.
-    while (totalBytesReceived < messageLength) {
-      // When the bytesRecieved is negative, the packet received is no longer 
-      // a part of the buffer. At this point the packet is no longer what the
-      // server is sending back.
-      if ((bytesReceived = (sock.recv(completeMessageBuffer, RCVBUFFERSIZE))) <= 0) {
-        std::cerr << "Unable to read";
-        exit(1);
-      }
-      totalBytesReceived += bytesReceived;
-      completeMessageBuffer[bytesReceived] = '\0';
-      std::cout << completeMessageBuffer;
-    }
-    std::cout << std::endl; 
   }
   catch(SocketException &e) {
     std::cerr << "Errored sending packet: " << e.what() << std::endl;

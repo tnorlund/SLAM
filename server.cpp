@@ -3,6 +3,7 @@
 #include <string>
 #include <sstream>
 #include <regex>
+#include <thread>
 #include <sys/stat.h>
 #include <yaml-cpp/yaml.h>
 
@@ -54,6 +55,10 @@ bool processCommandLine(int argc, char** argv,
   return true;
 }
 
+void writeConfigFile(std::string fileContents) {
+  std::cout << "writeConfigFile" << std::endl << fileContents << std::endl;
+}
+
 /**
  *   Handle the client by receiveing the packet and sending it back.
  * 
@@ -63,7 +68,7 @@ void HandleTCPClient(TCPSocket *clientSocket) {
   char messageBuffer[RCVBUFFERSIZE];
   int messageLength;
   std::string message;
-  std::string firstLine;
+  std::string line;
 
   try {
     std::cout << clientSocket->getForeignAddress() << ":";
@@ -76,7 +81,6 @@ void HandleTCPClient(TCPSocket *clientSocket) {
   } catch(SocketException &e) {
     std::cerr << "Unable to get foreign port" << std::endl;
   }
-  std::cout << " with thread " << std::this_thread::get_id() << std::endl;
 
   // While the client is sending the message, append each packet into message.
   while(
@@ -86,8 +90,13 @@ void HandleTCPClient(TCPSocket *clientSocket) {
       std::string(messageBuffer).substr(0, messageLength)
     );
   }
-  std::istringstream iss(some_string);
-  std::cout << std::getline(iss, firstLine) << std::endl;
+  std::istringstream iss(message);
+  std::getline(iss, line);
+  switch(line) {
+    case "CONFIG": writeConfigFile(message);
+    default: std::cerr << "Received bad command: " << line << std::endl;
+  }
+  std::cout << line << std::endl;
   // Luckily, the destructor of the socket closes everything.
 }
 
