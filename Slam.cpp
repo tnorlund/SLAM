@@ -51,6 +51,9 @@ SLAM::SLAM(std::string fileName) {
     throw "Configuration file does not hold the tablename.";
   }
   tableName = config["tablename"].as<std::string>();
+  if (!config["time"])
+    throw "Configuration file does not hold the time."
+  recordLength = config["time"].as<int>() * 1000;
 
   checkCameraConfiguration();
   setPiName();
@@ -71,7 +74,7 @@ SLAM::SLAM(std::string fileName) {
   if ( !Camera.open() ) { throw "Error opening the camera"; }
   // Set the directory name to be the hardware serial and the time of the
   // declaration.
-  directory = serial + std::to_string(getTimeInMiliseconds());
+  directory = serial;
   // If the directory used to store the images does not exist, create
   // the directory.
   if ( !std::filesystem::exists(directory) ) {
@@ -106,6 +109,77 @@ void SLAM::setPiName() {
   }
 }
 
+void writeImages() {
+  // Constantly write the image buffer to disk while recording.
+  while (recording) {
+    for (size_t i=0; i<bufferSize; i++) {
+      // Write the image to disk when the capture has not already been written
+      // to the disk and then set the buffer to have been written to the disk.
+      if (!captureWritten[i]) {
+        cv::imwrite(
+          "./" + directory + "/" + std::to_string(captureTimes[i]) + ".png",
+          captures[i]
+        );
+        captureWritten[i] = true;
+      }
+    }
+  }
+  // After the recording has finished, go through the buffer one last time to
+  // write whichever images are still in the buffer.
+  for (size_t i=0; i<bufferSize; i++) {
+    if (!captureWritten[i]) {
+      cv::imwrite(
+        "./" + directory + "/" + std::to_string(captureTimes[i]) + ".png",
+        captures[i]
+      );
+      captureWritten[i] = true;
+    }
+  }
+}
+
+void captureImages() {
+  /// The index in the buffer of where to save the capture time, the capture,
+  // and whether the frame still needs to be written to the disk.
+  int bufferIndex = 0;
+  /// The times used during the test.
+  int64_t timerBegin, timerEnd, lastFrame, thisFrame;
+
+  // Set the time of the start of the recording.
+  timerBegin = getTimeinMiliseconds();
+  // Take the first capture to fill the first index of the buffer.
+  lastFrame = getTimeInMiliseconds();
+  Camera.grab();
+  captureTimes[bufferIndex] = getTimeInMiliseconds();
+  Camera.retrieve(captures[bufferIndex]);
+  captureWritten[bufferIndex] = false;
+  bufferIndex++;
+
+  // After taking the first capture, constantly capture until the time has
+  // expired.
+  while (true) {
+    thisFrame = getTimeInMiliseconds();
+    timerEnd = getTimeInMiliseconds();
+    // Only capture an image if the proper time between the frames has been
+    // meet and the capture in the buffer has already been written to the disk.
+    if (
+      thisFrame - lastFrame >= timeBetweenFrames &&
+      captureWritten[bufferIndex]
+    ) {
+      Camera.grab();
+      captureTimes[bufferIndex] = getTimeInMiliseconds();
+      Camera.retrieve(captures[bufferIndex]);
+      captureWritten[bufferIndex] = false;
+      bufferIndex++;
+      // When the end of the buffer has been reached, reset the index back to
+      // the start of the buffer.
+      if (bufferIndex > bufferSize) bufferIndex = 0;
+    }
+    // When the recording time has expired, set the recording to "not 
+    // recording" and break out of the loop.
+    if (timerEnd - timerBegin >= timeLength) { recording = false; break; }
+  }
+}
+
 void SLAM::checkCameraConfiguration() {
   FILE *fp;
   char var[23];
@@ -128,4 +202,23 @@ void SLAM::checkCameraConfiguration() {
       throw "Unable to get camera information";
   }
 }
+
+void SLAM::record() {
+  /// The number of images stored to disk during the recording.
+  int numImages = 0;
+
+  // Set the start time of the recording and set the state of the recording to
+  // be "recording".
+  startTime = getTimeInMiliseconds();
+  recording = true;
+
+  // Separate the different processes into threads and run concurrently.
+  std::thread cameraThread(&SLAM::captureImages, this);
+  std::thread writeThread(&SLAM::writeImages, this);
+
+  // Once the recording is complete, wait for the processes to end.
+  cameraThread.join(); writeThread.join();
+}
+
+
 

@@ -20,22 +20,30 @@ public:
    */
   ~SLAM();
 
+  /**
+   *   @brief Start a recording.
+   */
+  void record();
+
 private:
   /**
-   *   Capture from the camera and store in the buffer.
-   * 
+   *   @brief Capture from the camera and store in the buffer.
+   *
+   *   Given a certian period of time, capture images through the camera and
+   *   store the images and the capture times in this object's buffer.
+   *
    *   @param timeLength The amount of time, in seconds, to capture from
    *     the camera for.
    */
-  void capture_images( int timeLength );
+  void captureImages();
 
   /**
    *   Write the images stored in the buffer to the disk.
    */
-  void write_images();
+  void writeImages();
 
   /**
-   *   Checks the Raspberry Pi for a connected camera.
+   *   @brief Checks the Raspberry Pi for a connected camera.
    * 
    *   This function checks the Raspberry Pi for whether the system is camera-
    *   compatible and if a camera is connected.
@@ -58,6 +66,8 @@ protected:
   int bufferSize;
   /// The requested frames per second.
   int requestedFPS;
+  /// The length of the recording in miliseconds.
+  int recordLength;
   /// The amount of times between image captures.
   double timeBetweenFrames;
   /// Whether to print to the console.
