@@ -55,7 +55,6 @@ private:
    */
   void setPiName();
 
-protected:
   /// The recorded times for each image capture.
   double* captureTimes = NULL;
   /// Whether the captured images have been written to disk or not.

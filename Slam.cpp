@@ -5,7 +5,7 @@
 #include <yaml-cpp/yaml.h>  // For Node
 #include <sys/stat.h>       // For stat
 #include <regex>            // For smatch, regex
-#include <boost/program_options.hpp> // For lexical_cast
+#include <thread>           // For thread
 
 
 /// The image height
@@ -52,7 +52,7 @@ SLAM::SLAM(std::string fileName) {
   }
   tableName = config["tablename"].as<std::string>();
   if (!config["time"])
-    throw "Configuration file does not hold the time."
+    throw "Configuration file does not hold the time.";
   recordLength = config["time"].as<int>() * 1000;
 
   checkCameraConfiguration();
@@ -64,6 +64,7 @@ SLAM::SLAM(std::string fileName) {
   for (size_t i=0; i<bufferSize; i++) { captureWritten[i] = true; }
   // Dynamically allocate the MAT objects to store the captures into.
   cv::Mat image = cv::Mat(HEIGHT, WIDTH, CV_8UC3);
+  for (size_t i=0; i<bufferSize; i++) { captures.push_back(image.clone()); }
   // Calculate the length of time between captures. Note, the time needs to be
   // given in milliseconds.
   timeBetweenFrames = (double)( 1 / (float)requestedFPS * 1000);
@@ -109,7 +110,7 @@ void SLAM::setPiName() {
   }
 }
 
-void writeImages() {
+void SLAM::writeImages() {
   // Constantly write the image buffer to disk while recording.
   while (recording) {
     for (size_t i=0; i<bufferSize; i++) {
@@ -137,7 +138,7 @@ void writeImages() {
   }
 }
 
-void captureImages() {
+void SLAM::captureImages() {
   /// The index in the buffer of where to save the capture time, the capture,
   // and whether the frame still needs to be written to the disk.
   int bufferIndex = 0;
@@ -145,7 +146,7 @@ void captureImages() {
   int64_t timerBegin, timerEnd, lastFrame, thisFrame;
 
   // Set the time of the start of the recording.
-  timerBegin = getTimeinMiliseconds();
+  timerBegin = getTimeInMiliseconds();
   // Take the first capture to fill the first index of the buffer.
   lastFrame = getTimeInMiliseconds();
   Camera.grab();
@@ -176,7 +177,7 @@ void captureImages() {
     }
     // When the recording time has expired, set the recording to "not 
     // recording" and break out of the loop.
-    if (timerEnd - timerBegin >= timeLength) { recording = false; break; }
+    if (timerEnd - timerBegin >= recordLength) { recording = false; break; }
   }
 }
 
