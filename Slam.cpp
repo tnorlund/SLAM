@@ -8,6 +8,8 @@
 #include <thread>           // For thread
 
 
+
+
 /// The image height
 const int HEIGHT = 960;
 /// The image width
@@ -110,10 +112,10 @@ void SLAM::setPiName() {
   }
 }
 
-void SLAM::writeImages() {
+void SLAM::writeOddImages() {
   // Constantly write the image buffer to disk while recording.
   while (recording) {
-    for (size_t i=0; i<bufferSize; i++) {
+    for (size_t i=1; i<bufferSize; i+=2) {
       // Write the image to disk when the capture has not already been written
       // to the disk and then set the buffer to have been written to the disk.
       if (!captureWritten[i]) {
@@ -127,7 +129,35 @@ void SLAM::writeImages() {
   }
   // After the recording has finished, go through the buffer one last time to
   // write whichever images are still in the buffer.
-  for (size_t i=0; i<bufferSize; i++) {
+  for (size_t i=1; i<bufferSize; i+=2) {
+    if (!captureWritten[i]) {
+      cv::imwrite(
+        "./" + directory + "/" + std::to_string(captureTimes[i]) + ".png",
+        captures[i]
+      );
+      captureWritten[i] = true;
+    }
+  }
+}
+
+void SLAM::writeEvenImages() {
+  // Constantly write the image buffer to disk while recording.
+  while (recording) {
+    for (size_t i=0; i<bufferSize; i+=2) {
+      // Write the image to disk when the capture has not already been written
+      // to the disk and then set the buffer to have been written to the disk.
+      if (!captureWritten[i]) {
+        cv::imwrite(
+          "./" + directory + "/" + std::to_string(captureTimes[i]) + ".png",
+          captures[i]
+        );
+        captureWritten[i] = true;
+      }
+    }
+  }
+  // After the recording has finished, go through the buffer one last time to
+  // write whichever images are still in the buffer.
+  for (size_t i=0; i<bufferSize; i+=2) {
     if (!captureWritten[i]) {
       cv::imwrite(
         "./" + directory + "/" + std::to_string(captureTimes[i]) + ".png",
@@ -215,10 +245,12 @@ void SLAM::record() {
 
   // Separate the different processes into threads and run concurrently.
   std::thread cameraThread(&SLAM::captureImages, this);
-  std::thread writeThread(&SLAM::writeImages, this);
+  std::thread oddWriteThread(&SLAM::writeOddImages, this);
+  std::thread evenWriteThread(&SLAM::writeEvenImages, this);
+  gyroscope.writeToFile(recordLength, directory + "/poses.csv");
 
   // Once the recording is complete, wait for the processes to end.
-  cameraThread.join(); writeThread.join();
+  oddWriteThread.join(); evenWriteThread.join(); cameraThread.join();
 }
 
 

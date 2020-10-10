@@ -8,6 +8,8 @@
 #include <raspicam/raspicam_cv.h> // For RaspiCam_Cv
 #include <fstream>                // For ofstream, ifstream
 
+#include "MPU6050.h"              // For MPU6050
+
 class SLAM {
 public:
   /**
@@ -38,9 +40,14 @@ private:
   void captureImages();
 
   /**
-   *   Write the images stored in the buffer to the disk.
+   *   Write the odd numbered images stored in the buffer to the disk.
    */
-  void writeImages();
+  void writeOddImages();
+
+  /**
+   *   Write the even numbered images stored in the buffer to the disk.
+   */
+  void writeEvenImages();
 
   /**
    *   @brief Checks the Raspberry Pi for a connected camera.
@@ -88,6 +95,8 @@ private:
   std::string serial;
   /// The DynamoDB table name used to store the test.
   std::string tableName;
+  /// The gyroscope object used to record the poses.
+  MPU6050::MPU6050 gyroscope;
 
 };
 

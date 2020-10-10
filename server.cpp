@@ -137,7 +137,7 @@ void writeConfigFile(std::string fileContents) {
  * 
  *   @param clientSocket the open socket used to accept the packet
  */
-void HandleTCPClient(TCPSocket *clientSocket) {
+void HandleTCPClient(TCPSocket *clientSocket, SLAM *recording) {
   char messageBuffer[RCVBUFFERSIZE];
   /// The character buffer used to store the message sent to the server per
   /// packet sent.
@@ -192,9 +192,11 @@ void HandleTCPClient(TCPSocket *clientSocket) {
   // Execute whatever commands are required based on the messageType.
   if (messageType == "START") { 
     std::cout << "received START" << std::endl;
+    recording->record();
   }
   else if (messageType == "CONFIG") { 
     writeConfigFile(message);
+
     handleBuffer(done, sendBuffer, messageLength);
     clientSocket->send(sendBuffer, messageLength);
   }
@@ -202,8 +204,8 @@ void HandleTCPClient(TCPSocket *clientSocket) {
   // Luckily, the destructor of the socket closes everything.
 }
 
-void *ThreadMain(void *clientSocket) {
-  HandleTCPClient((TCPSocket *) clientSocket);
+void *ThreadMain(void *clientSocket, SLAM *recording) {
+  HandleTCPClient((TCPSocket *) clientSocket, recording);
   delete (TCPSocket *) clientSocket;
   return NULL;
 }
@@ -225,7 +227,7 @@ int main (int argc, char * argv[]) {
     while (true) {
       // Memory must be allocated in order to accept the client's argument.
       TCPSocket *clientSocket = serverSocket.accept();
-      std::thread thread(ThreadMain, (void *) clientSocket);
+      std::thread thread(ThreadMain, (void *) clientSocket, &recording);
       thread.detach();
     }
   } catch(SocketException &e) {
