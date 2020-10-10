@@ -96,7 +96,7 @@ private:
   /// The DynamoDB table name used to store the test.
   std::string tableName;
   /// The gyroscope object used to record the poses.
-  MPU6050::MPU6050 gyroscope;
+  MPU6050 gyroscope;
 
 };
 

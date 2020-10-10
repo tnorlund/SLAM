@@ -6,8 +6,9 @@
 #include <sys/stat.h>
 #include <yaml-cpp/yaml.h>
 
-#include "MPU6050.h"
+
 #include "Socket.h"
+#include "Slam.h"
 #include <boost/program_options.hpp>
 
 /// The size of the sent packet.
@@ -204,12 +205,14 @@ int main(int argc, char** argv) {
     configFile
   );
   try {
+    SLAM recording(configFile);
     TCPSocket sock(
       config["server"].as<std::string>(),
       config["port"].as<unsigned short>()
     );
     handleBuffer(start, messageBuffer, messageLength);
     sock.send(messageBuffer, messageLength);
+    recording.record();
   } catch(SocketException &e) {
     std::cerr << "Errored while sending start message" << std::endl;
   }
