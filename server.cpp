@@ -21,6 +21,26 @@ const int RCVBUFFERSIZE = 32;
 const std::string CONFIG_FILENAME = "config.yaml";
 
 /**
+ *   Handles the message being sent to the server.
+ *   
+ *   The TCP socket uses a buffer to stream data. In order to use the buffer,
+ *   the string passed as a command line argumenet must be discretized as an
+ *   array of characters.
+ * 
+ *   @param message The message being sent as a string.
+ *   @param messageBuffer The array of characters used to store the string.
+ *   @param messageLength The length of the message.
+ */
+void handleBuffer(
+  std::string message, char *&messageBuffer, int &messageLength
+) {
+  messageBuffer = (char *)malloc((message.size() + 1) * sizeof(char));
+  message.copy(messageBuffer, message.size() + 1);
+  messageBuffer[message.size() + 1] = '\0';
+  messageLength = message.length();
+}
+
+/**
  *   Handle the parameters given in the command line.
  * 
  *   @param port The port number to listen on
@@ -58,6 +78,45 @@ bool processCommandLine(int argc, char** argv,
   return true;
 }
 
+
+/**
+ *   @brief Determines the length of the following packets.
+ *
+ *   @param clientSocket The socket to the client
+ *   @param totalLength The length of the following packets
+ *   @param messageType The type of message sent from the client
+ */
+void handleFirstMessage(
+  TCPSocket *clientSocket, int &totalLength, std::string &messageType
+) {
+  int messageLength;
+  char startBuffer[13];
+  std::string startMessage;
+  int spaceIdx = 0;
+
+  // Receive the start message.
+  messageLength = clientSocket->recv(startBuffer, 13);
+  startMessage = std::string(startBuffer).substr(0, messageLength);
+  // Determine the message type by getting the first word of the message
+  // received.
+  for (int i=0; i<startMessage.length(); i++) {
+    if (startMessage.at(i) == ' ') {
+      spaceIdx = i; 
+      break;
+    }
+  }
+  messageType = startMessage.substr(0, spaceIdx);
+  // If the message type is a config file, the length of the config file is
+  // obtained.
+  if (messageType == "CONFIG")
+    totalLength = std::stoi(
+      startMessage.substr(
+        startMessage.length() - 6, startMessage.length()
+      )
+    );
+  
+}
+
 void writeConfigFile(std::string fileContents) {
   /// File buffer for the config file.
   struct stat configbuffer;
@@ -69,7 +128,7 @@ void writeConfigFile(std::string fileContents) {
     std::filesystem::remove(CONFIG_FILENAME);
     
   fileOutput.open(CONFIG_FILENAME, std::ios::app); 
-  fileOutput << fileContents.substr(7, fileContents.length());
+  fileOutput << fileContents;
   fileOutput.close();
 }
 
@@ -80,9 +139,20 @@ void writeConfigFile(std::string fileContents) {
  */
 void HandleTCPClient(TCPSocket *clientSocket) {
   char messageBuffer[RCVBUFFERSIZE];
+  /// The character buffer used to store the message sent to the server per
+  /// packet sent.
+  char startBuffer[13];
+  char * sendBuffer;
   int messageLength;
   std::string message;
   std::string line;
+  std::string done = "DONE";
+  std::string messageType;
+  int totalLength;
+  int totalBytesReceived = 0;
+  int bytesReceived;
+  // The character buffer used to store the message received from the server.
+  char receiveBuffer[RCVBUFFERSIZE + 1];
 
   try {
     std::cout << clientSocket->getForeignAddress() << ":";
@@ -95,19 +165,39 @@ void HandleTCPClient(TCPSocket *clientSocket) {
   } catch(SocketException &e) {
     std::cerr << "Unable to get foreign port" << std::endl;
   }
+  std::cout << std::endl;
 
-  // While the client is sending the message, append each packet into message.
-  while(
-    (messageLength = clientSocket->recv(messageBuffer, RCVBUFFERSIZE)) > 0
-  ) {
-    message.append(
-      std::string(messageBuffer).substr(0, messageLength)
-    );
+  // The first packet received determines the message type and the length of
+  // the packets following.
+  handleFirstMessage(clientSocket, totalLength, messageType);
+
+  // While the client is sending the configuration file, append each packet
+  // into message.
+  if ( messageType == "CONFIG") {
+    while(totalBytesReceived < totalLength) {
+      // Error out if the bytesReceived is negative.
+      if (
+        (bytesReceived = (clientSocket->recv(receiveBuffer, RCVBUFFERSIZE))) <= 0
+      ) {
+        std::cerr << "Unable to read packet from client." << std::endl;
+        exit(1);
+      }
+      totalBytesReceived += bytesReceived;
+      message.append(
+        std::string(receiveBuffer).substr(0, bytesReceived)
+      );
+    }
   }
-  std::istringstream iss(message);
-  std::getline(iss, line);
-  if (line == "START") { SLAM recording(CONFIG_FILENAME);}
-  if (line == "CONFIG") { writeConfigFile(message); }
+
+  // Execute whatever commands are required based on the messageType.
+  if (messageType == "START") { 
+    std::cout << "received START" << std::endl;
+  }
+  else if (messageType == "CONFIG") { 
+    writeConfigFile(message);
+    handleBuffer(done, sendBuffer, messageLength);
+    clientSocket->send(sendBuffer, messageLength);
+  }
   else { std::cerr << "Received bad command: " << line << std::endl; }
   // Luckily, the destructor of the socket closes everything.
 }
@@ -122,6 +212,7 @@ int main (int argc, char * argv[]) {
   bool result;
   std::string port;
   unsigned short serverPort;
+  SLAM recording(CONFIG_FILENAME);
 
   // Handle the arguments passed via command line
   result = processCommandLine(argc, argv, port);
