@@ -62,7 +62,7 @@ void MPU6050::writeToFile(int seconds, std::string fileName) {
         std::chrono::system_clock::now().time_since_epoch()
       ).count()
     ) << "," << Gx << "," << Gy << "," << Gz << "," << Ax << "," << Ay << ","
-      << Az << ",\n";
+      << Az << "\n";
     time(&timer_end);
     if (difftime(timer_end, timer_begin) >= seconds)
         time_done = true;

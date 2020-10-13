@@ -61,7 +61,7 @@ SLAM::SLAM(std::string fileName) {
   setPiName();
   // Dynamically allocate enough space for the time of each capture and whether
   // each frame was written to disk or not.
-  captureTimes = new double [bufferSize];
+  captureTimes = new int64_t [bufferSize];
   captureWritten = new bool [bufferSize];
   for (size_t i=0; i<bufferSize; i++) { captureWritten[i] = true; }
   // Dynamically allocate the MAT objects to store the captures into.
