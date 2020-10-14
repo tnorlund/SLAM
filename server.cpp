@@ -87,7 +87,7 @@ bool processCommandLine(int argc, char** argv,
  *   @param messageType The type of message sent from the client
  */
 void handleFirstMessage(
-  TCPSocket *clientSocket, int &totalLength, std::string &messageType
+  TCPSocket *clientSocket, int64_t &totalLength, std::string &messageType
 ) {
   int messageLength;
   char startBuffer[13];
@@ -95,7 +95,7 @@ void handleFirstMessage(
   int spaceIdx = 0;
 
   // Receive the start message.
-  messageLength = clientSocket->recv(startBuffer, 13);
+  messageLength = clientSocket->recv(startBuffer, 20);
   startMessage = std::string(startBuffer).substr(0, messageLength);
   // Determine the message type by getting the first word of the message
   // received.
@@ -108,13 +108,11 @@ void handleFirstMessage(
   messageType = startMessage.substr(0, spaceIdx);
   // If the message type is a config file, the length of the config file is
   // obtained.
-  if (messageType == "CONFIG")
-    totalLength = std::stoi(
-      startMessage.substr(
-        startMessage.length() - 6, startMessage.length()
-      )
-    );
-  
+  totalLength = std::stoll(
+    startMessage.substr(
+      startMessage.length() - 13, startMessage.length()
+    )
+  );
 }
 
 void writeConfigFile(std::string fileContents) {
@@ -148,7 +146,7 @@ void HandleTCPClient(TCPSocket *clientSocket, SLAM *recording) {
   std::string line;
   std::string done = "DONE";
   std::string messageType;
-  int totalLength;
+  int64_t totalLength;
   int totalBytesReceived = 0;
   int bytesReceived;
   // The character buffer used to store the message received from the server.
@@ -191,12 +189,10 @@ void HandleTCPClient(TCPSocket *clientSocket, SLAM *recording) {
 
   // Execute whatever commands are required based on the messageType.
   if (messageType == "START") { 
-    std::cout << "received START" << std::endl;
-    recording->record();
+    recording->record(std::to_string(totalLength));
   }
   else if (messageType == "CONFIG") { 
     writeConfigFile(message);
-
     handleBuffer(done, sendBuffer, messageLength);
     clientSocket->send(sendBuffer, messageLength);
   }

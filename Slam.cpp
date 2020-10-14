@@ -253,5 +253,25 @@ void SLAM::record() {
   oddWriteThread.join(); evenWriteThread.join(); cameraThread.join();
 }
 
+void SLAM::record(std::string dir) {
+  directory = dir;
+  /// The number of images stored to disk during the recording.
+  int numImages = 0;
+
+  // Set the start time of the recording and set the state of the recording to
+  // be "recording".
+  startTime = getTimeInMiliseconds();
+  recording = true;
+
+  // Separate the different processes into threads and run concurrently.
+  std::thread cameraThread(&SLAM::captureImages, this);
+  std::thread oddWriteThread(&SLAM::writeOddImages, this);
+  std::thread evenWriteThread(&SLAM::writeEvenImages, this);
+  gyroscope.writeToFile(recordLength, directory + "/poses.csv");
+
+  // Once the recording is complete, wait for the processes to end.
+  oddWriteThread.join(); evenWriteThread.join(); cameraThread.join();
+}
+
 
 

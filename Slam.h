@@ -10,6 +10,8 @@
 
 #include "MPU6050.h"              // For MPU6050
 
+int64_t getTimeInMiliseconds();
+
 class SLAM {
 public:
   /**
@@ -26,6 +28,8 @@ public:
    *   @brief Start a recording.
    */
   void record();
+
+  void record(std::string dir);
 
 private:
   /**

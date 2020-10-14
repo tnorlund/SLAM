@@ -14,6 +14,7 @@
 /// The size of the sent packet.
 const int RCVBUFFERSIZE = 32;
 
+
 /**
  *   @brief Handle the parameters given in the command line.
  * 
@@ -126,9 +127,10 @@ void sendConfig(
     // zero-padded length of the message.
     configRaw = getFileData(configFile);
     startMessage = "CONFIG " + std::string( 
-        6 - std::to_string( configRaw.length() ).length(), '0' 
+        13 - std::to_string( configRaw.length() ).length(), '0' 
       )
       .append( std::to_string( configRaw.length() ) );
+    std::cout << "startMessage: " << startMessage << std::endl;
     handleBuffer(startMessage, messageBuffer, messageLength);
     sock.send(messageBuffer, messageLength);
 
@@ -166,7 +168,7 @@ int main(int argc, char** argv) {
   char * messageBuffer;
   // The character buffer used to store the message received from the server.
   char receiveBuffer[RCVBUFFERSIZE + 1];
-  /// The character buffer used to store the entier
+  /// The character buffer used to store the entire
   char completeMessageBuffer[RCVBUFFERSIZE + 1];
   /// The length of the message being sent to the server.
   int messageLength; 
@@ -177,9 +179,11 @@ int main(int argc, char** argv) {
   /// The configuration file's content.
   std::string configRaw;
   /// The start message sent to the server to start recording.
-  std::string start = "START         ";
+  std::string start = "START ";
   /// The first message sent stating the type of message and it's length.
   std::string lengthMessage;
+  /// The time to start the recording.
+  std::string recordingTime;
 
   // Handle the arguments passed via command line
   clArgumentsGood = processCommandLine(argc, argv, configFile);
@@ -210,9 +214,12 @@ int main(int argc, char** argv) {
       config["server"].as<std::string>(),
       config["port"].as<unsigned short>()
     );
-    handleBuffer(start, messageBuffer, messageLength);
+    recordingTime = std::to_string(getTimeInMiliseconds());
+    handleBuffer(
+      start + recordingTime, messageBuffer, messageLength
+    );
     sock.send(messageBuffer, messageLength);
-    recording.record();
+    recording.record(recordingTime);
   } catch(SocketException &e) {
     std::cerr << "Errored while sending start message" << std::endl;
   }
