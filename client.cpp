@@ -130,7 +130,6 @@ void sendConfig(
         13 - std::to_string( configRaw.length() ).length(), '0' 
       )
       .append( std::to_string( configRaw.length() ) );
-    std::cout << "startMessage: " << startMessage << std::endl;
     handleBuffer(startMessage, messageBuffer, messageLength);
     sock.send(messageBuffer, messageLength);
 

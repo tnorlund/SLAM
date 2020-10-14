@@ -159,15 +159,16 @@ void HandleTCPClient(TCPSocket *clientSocket, SLAM *recording) {
   }
 
   try {
-    std::cout << clientSocket->getForeignPort();
+    std::cout << clientSocket->getForeignPort() << " - ";
   } catch(SocketException &e) {
     std::cerr << "Unable to get foreign port" << std::endl;
   }
-  std::cout << std::endl;
+  
 
   // The first packet received determines the message type and the length of
   // the packets following.
   handleFirstMessage(clientSocket, totalLength, messageType);
+  std::cout << messageType << std::endl;
 
   // While the client is sending the configuration file, append each packet
   // into message.

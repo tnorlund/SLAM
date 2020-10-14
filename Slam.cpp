@@ -7,9 +7,6 @@
 #include <regex>            // For smatch, regex
 #include <thread>           // For thread
 
-
-
-
 /// The image height
 const int HEIGHT = 960;
 /// The image width
@@ -262,13 +259,15 @@ void SLAM::record(std::string dir) {
   // be "recording".
   startTime = getTimeInMiliseconds();
   recording = true;
+  std::cout << "directory: " << directory << std::endl;
+  std::cout << "splitting threads" << std::endl;
 
   // Separate the different processes into threads and run concurrently.
   std::thread cameraThread(&SLAM::captureImages, this);
   std::thread oddWriteThread(&SLAM::writeOddImages, this);
   std::thread evenWriteThread(&SLAM::writeEvenImages, this);
   gyroscope.writeToFile(recordLength, directory + "/poses.csv");
-
+  std::cout << "running multiple processes" << std::endl;
   // Once the recording is complete, wait for the processes to end.
   oddWriteThread.join(); evenWriteThread.join(); cameraThread.join();
 }
