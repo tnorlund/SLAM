@@ -52,7 +52,7 @@ SLAM::SLAM(std::string fileName) {
   tableName = config["tablename"].as<std::string>();
   if (!config["time"])
     throw "Configuration file does not hold the time.";
-  recordLength = config["time"].as<int>() * 1000;
+  recordLength = config["time"].as<int>();
 
   checkCameraConfiguration();
   setPiName();
@@ -204,7 +204,9 @@ void SLAM::captureImages() {
     }
     // When the recording time has expired, set the recording to "not 
     // recording" and break out of the loop.
-    if (timerEnd - timerBegin >= recordLength) { recording = false; break; }
+    if (timerEnd - timerBegin >= recordLength * 1000) { 
+      recording = false; break; 
+    }
   }
 }
 
@@ -261,13 +263,18 @@ void SLAM::record(std::string dir) {
   recording = true;
   std::cout << "directory: " << directory << std::endl;
   std::cout << "splitting threads" << std::endl;
-
+  // If the directory used to store the images does not exist, create
+  // the directory.
+  if ( !std::filesystem::exists(directory) ) {
+      std::filesystem::create_directory(directory);
+  }
   // Separate the different processes into threads and run concurrently.
   std::thread cameraThread(&SLAM::captureImages, this);
   std::thread oddWriteThread(&SLAM::writeOddImages, this);
   std::thread evenWriteThread(&SLAM::writeEvenImages, this);
+  std::cout << "after splitting the threads, record poses on main" << std::endl;
   gyroscope.writeToFile(recordLength, directory + "/poses.csv");
-  std::cout << "running multiple processes" << std::endl;
+  std::cout << "finished recording poses." << std::endl;
   // Once the recording is complete, wait for the processes to end.
   oddWriteThread.join(); evenWriteThread.join(); cameraThread.join();
 }
